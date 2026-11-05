@@ -1,0 +1,7 @@
+/**/node2:
+  ros__parameters:
+    param_a: 1
+/**:
+  ros__parameters:
+    param_a: 2
+    param_b: 2

@@ -32,7 +32,9 @@ rclcpp::detail::resolve_parameter_overrides(
 {
   std::map<std::string, rclcpp::ParameterValue> result;
 
-  // global before local so that local overwrites global
+  // global before local so that local overwrites global.
+  // Within a source, the overrides are in the order of the command line arguments, so a later
+  // params file overwrites an earlier one regardless of the node names that are used.
   std::array<const rcl_arguments_t *, 2> argument_sources = {global_args, local_args};
 
   // Get fully qualified node name post-remapping to use to find node's params in yaml files
@@ -42,7 +44,7 @@ rclcpp::detail::resolve_parameter_overrides(
       continue;
     }
     rcl_params_t * params = NULL;
-    rcl_ret_t ret = rcl_arguments_get_param_overrides(source, &params);
+    rcl_ret_t ret = rcl_arguments_get_param_overrides_in_order(source, &params);
     if (RCL_RET_OK != ret) {
       rclcpp::exceptions::throw_from_rcl_error(ret);
     }

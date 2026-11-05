@@ -69,7 +69,7 @@ protected:
 
 TEST_F(TestNodeParameters, construct_destruct_rcl_errors) {
   auto mock = mocking_utils::patch_and_return(
-    "lib:rclcpp", rcl_arguments_get_param_overrides, RCL_RET_ERROR);
+    "lib:rclcpp", rcl_arguments_get_param_overrides_in_order, RCL_RET_ERROR);
   EXPECT_THROW(
     std::make_shared<rclcpp::Node>("node2", "ns").reset(),
     rclcpp::exceptions::RCLError);
@@ -517,6 +517,52 @@ TEST_F(TestNodeParameters, params_by_order)
   EXPECT_EQ(parameter_overrides.at("a_value").get<std::string>(), "last_one_win");
   EXPECT_EQ(parameter_overrides.at("foo").get<std::string>(), "foo");
   EXPECT_EQ(parameter_overrides.at("bar").get<std::string>(), "bar");
+}
+
+TEST_F(TestNodeParameters, later_params_file_overrides_earlier_regardless_of_node_name)
+{
+  // The first file sets the parameter for the exact node name and then for the wildcard.
+  // The second file sets it for the exact node name again and has to win, as it is given later.
+  rclcpp::NodeOptions opts;
+  opts.arguments(
+  {
+    "--ros-args",
+    "--params-file", (test_resources_path / "params_file_order_1.yaml").string(),
+    "--params-file", (test_resources_path / "params_file_order_2.yaml").string()
+  });
+
+  std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("node2", opts);
+
+  auto * node_parameters =
+    dynamic_cast<rclcpp::node_interfaces::NodeParameters *>(
+    node->get_node_parameters_interface().get());
+  ASSERT_NE(nullptr, node_parameters);
+
+  const auto & parameter_overrides = node_parameters->get_parameter_overrides();
+  EXPECT_EQ(2u, parameter_overrides.size());
+  EXPECT_EQ(parameter_overrides.at("param_a").get<int64_t>(), 3);
+  EXPECT_EQ(parameter_overrides.at("param_b").get<int64_t>(), 2);
+}
+
+TEST_F(TestNodeParameters, later_cli_parameter_overrides_params_file)
+{
+  rclcpp::NodeOptions opts;
+  opts.arguments(
+  {
+    "--ros-args",
+    "--params-file", (test_resources_path / "params_file_order_1.yaml").string(),
+    "-p", "node2:param_a:=4"
+  });
+
+  std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("node2", opts);
+
+  auto * node_parameters =
+    dynamic_cast<rclcpp::node_interfaces::NodeParameters *>(
+    node->get_node_parameters_interface().get());
+  ASSERT_NE(nullptr, node_parameters);
+
+  const auto & parameter_overrides = node_parameters->get_parameter_overrides();
+  EXPECT_EQ(parameter_overrides.at("param_a").get<int64_t>(), 4);
 }
 
 TEST_F(TestNodeParameters, complicated_wildcards)
